@@ -1,0 +1,171 @@
+name: Build and Release
+
+on:
+  # schedule:
+  #   - cron: '0 18 * * 4'
+  workflow_dispatch:
+    # inputs:
+    #   tag_name:
+    #     description: 'Tag name (e.g., v1.0.0)'
+    #     required: true
+  # push:
+  #   branches:
+  #     - main
+  #   tags:
+  #     - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      TZ: Asia/Shanghai
+    steps:
+      - name: Check build space
+        run: |
+          df -h
+          lsblk
+          free -h
+      - name: Check if /mnt is mounted
+        id: check-mnt
+        run: |
+          if mountpoint -q /mnt; then
+            echo "mnt_exists=true" >> $GITHUB_OUTPUT
+            echo "/mnt is mounted"
+          else
+            echo "mnt_exists=false" >> $GITHUB_OUTPUT
+            echo "/mnt is not mounted, skipping maximize-build-space"
+          fi
+      - name: Maximize build space
+        if: steps.check-mnt.outputs.mnt_exists == 'true'
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 10240
+          swap-size-mb: 1024
+          remove-dotnet: 'false'
+      - name: Check build space after maximize-build-space
+        run: |
+          df -h
+          lsblk
+          free -h
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup environment
+        run: |
+          sudo ./install-env.sh
+      - name: Prepare
+        run: |
+          ./prepare.sh
+      - name: Build
+        run: |
+          ./build.sh
+      - name: Prepare release assets
+        run: |
+          mkdir -p release_assets
+          cp immortalwrt/bin/targets/mediatek/filogic/immortalwrt-mediatek-filogic-huasifei_wh3000-pro-emmc-squashfs-sysupgrade.bin release_assets/ || true
+          cp immortalwrt/bin/targets/mediatek/filogic/immortalwrt-mediatek-filogic-huasifei_wh3000-pro-nand-squashfs-sysupgrade.bin release_assets/ || true
+          cp immortalwrt/bin/targets/mediatek/filogic/immortalwrt-mediatek-filogic.manifest release_assets/ || true
+          cp immortalwrt/bin/targets/mediatek/filogic/config.buildinfo release_assets/ || true
+          cp immortalwrt/bin/targets/mediatek/filogic/feeds.buildinfo release_assets/ || true
+          cp immortalwrt/bin/targets/mediatek/filogic/profiles.json release_assets/ || true
+          cp immortalwrt/bin/targets/mediatek/filogic/version.buildinfo release_assets/ || true
+          cp immortalwrt/bin/targets/mediatek/filogic/sha256sums release_assets/ || true
+          bash -c "cd immortalwrt && git log -n 30" > release_assets/recent_git.log
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: release_assets/
+      - name: Calculate disk usage
+        if: always()
+        run: |
+          df -h
+          lsblk
+          du -h --max-depth=2
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TZ: Asia/Shanghai
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: release_assets/
+      - name: List files
+        run: |
+          ls -lah
+          ls -lah release_assets
+      - name: Prepare release info
+        id: release-prepare
+        run: |
+          current_date=$(date +'%y%m%d')
+          current_time=$(date +'%H%M%S')
+          new_tag=v0.${current_date}.${current_time}
+          echo "current_date=${current_date}" >> $GITHUB_OUTPUT
+          echo "current_time=${current_time}" >> $GITHUB_OUTPUT
+          echo "new_tag=${new_tag}" >> $GITHUB_OUTPUT
+          RELEASE_DATE=$(date '+%Y-%m-%d %H:%M:%S')
+          VERSION=$(cat release_assets/version.buildinfo | grep '^r' | head -n 1)
+          echo "RELEASE_TITLE=${RELEASE_DATE} - ${VERSION}" >> $GITHUB_OUTPUT
+          image_prefix=immortalWrt-huasifei_wh3000pro-${current_date}${current_time}-
+          echo "IMAGE_PREFIX=${image_prefix}" >> $GITHUB_OUTPUT
+          cat release_header.md > release_info.md
+          echo "" >> release_info.md
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREVIOUS_TAG" ]; then
+              echo "<details>" >> release_info.md
+              echo "<summary>本仓库变更 (${PREVIOUS_TAG}..${new_tag})</summary>" >> release_info.md
+              echo "" >> release_info.md
+              git log --pretty=format:"%h %s" ${PREVIOUS_TAG}..HEAD >> release_info.md
+              echo "" >> release_info.md
+              echo "</details>" >> release_info.md
+          fi
+          echo "<details>" >> release_info.md
+          echo "<summary>ImmortalWrt最近变更</summary>" >> release_info.md
+          echo "" >> release_info.md
+          echo "\`\`\`" >> release_info.md
+          cat release_assets/recent_git.log >> release_info.md
+          echo "\`\`\`" >> release_info.md
+          echo "" >> release_info.md
+          echo "</details>" >> release_info.md
+          echo "<details>" >> release_info.md
+          echo "<summary>内置软件包列表</summary>" >> release_info.md
+          echo "" >> release_info.md
+          echo "\`\`\`" >> release_info.md
+          cat release_assets/immortalwrt-mediatek-filogic.manifest >> release_info.md
+          echo "\`\`\`" >> release_info.md
+          echo "" >> release_info.md
+          echo "</details>" >> release_info.md
+          echo "<details>" >> release_info.md
+          echo "<summary>文件哈希</summary>" >> release_info.md
+          echo "" >> release_info.md
+          echo "\`\`\`" >> release_info.md
+          cat release_assets/sha256sums >> release_info.md
+          echo "\`\`\`" >> release_info.md
+          echo "" >> release_info.md
+          echo "</details>" >> release_info.md
+      - name: Create new tag
+        run: |
+          git tag ${{ steps.release-prepare.outputs.new_tag }}
+          git push origin ${{ steps.release-prepare.outputs.new_tag }}
+      - name: Rename image
+        run: |
+          mv release_assets/immortalwrt-mediatek-filogic-huasifei_wh3000-pro-emmc-squashfs-sysupgrade.bin release_assets/${{ steps.release-prepare.outputs.IMAGE_PREFIX }}emmc-squashfs-sysupgrade.img.gz
+          mv release_assets/immortalwrt-mediatek-filogic-huasifei_wh3000-pro-nand-squashfs-sysupgrade.bin release_assets/${{ steps.release-prepare.outputs.IMAGE_PREFIX }}nand-squashfs-sysupgrade.img.gz
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release-prepare.outputs.new_tag }}
+          # tag_name: ${{ inputs.tag_name }}
+          name: ${{ steps.release-prepare.outputs.RELEASE_TITLE }}
+          body_path: release_info.md
+          prerelease: true
+          files: |
+            release_assets/*

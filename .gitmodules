@@ -1,0 +1,15 @@
+[submodule "zz-packages/bandix/luci-app-bandix"]
+	path = zz-packages/bandix/luci-app-bandix
+	url = https://github.com/timsaya/luci-app-bandix.git
+[submodule "zz-packages/bandix/openwrt-bandix"]
+	path = zz-packages/bandix/openwrt-bandix
+	url = https://github.com/timsaya/openwrt-bandix.git
+[submodule "zz-packages/theme/luci-theme-aurora"]
+	path = zz-packages/theme/luci-theme-aurora
+	url = https://github.com/eamonxg/luci-theme-aurora.git
+[submodule "zz-packages/theme/luci-app-aurora-config"]
+	path = zz-packages/theme/luci-app-aurora-config
+	url = https://github.com/eamonxg/luci-app-aurora-config.git
+[submodule "zz-packages/theme/luci-theme-glass"]
+	path = zz-packages/theme/luci-theme-glass
+	url = https://github.com/rchen14b/luci-theme-glass.git

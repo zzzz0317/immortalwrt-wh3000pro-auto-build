@@ -1,0 +1,2 @@
+config status
+	option first_boot '1'

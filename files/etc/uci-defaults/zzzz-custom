@@ -1,0 +1,59 @@
+#!/bin/sh
+is_first_boot=`uci -q get zz_config.@status[0].first_boot`
+if test $is_first_boot -gt 0; then
+
+uci set luci.main.lang='zh_cn'
+uci set luci.main.mediaurlbase='/luci-static/aurora'
+
+uci add aurora toolbar_item
+uci set aurora.@toolbar_item[-1].enabled='1'
+uci set aurora.@toolbar_item[-1].title='Wi-Fi'
+uci set aurora.@toolbar_item[-1].url='/cgi-bin/luci/admin/network/wireless'
+uci set aurora.@toolbar_item[-1].icon='wifi.svg'
+uci add aurora toolbar_item
+uci set aurora.@toolbar_item[-1].enabled='1'
+uci set aurora.@toolbar_item[-1].title='Modem'
+uci set aurora.@toolbar_item[-1].url='/cgi-bin/luci/admin/modem/qmodem'
+uci set aurora.@toolbar_item[-1].icon='bandwidth.svg'
+
+uci set attendedsysupgrade.client.login_check_for_upgrades='0'
+uci del firewall.@defaults[0].flow_offloading_hw
+
+uci set qmodem.main.start_delay='15'
+uci del qmodem.main.enable_pcie_scan
+uci set qmodem.main.enable_usb_scan='1'
+uci set qmodem.wwan=modem-slot
+uci set qmodem.wwan.type='usb'
+uci set qmodem.wwan.slot='2-1.4'
+uci set qmodem.wwan.alias='wwan'
+
+uci commit
+/etc/init.d/network reload
+
+sed -i '/qmodem/d' /etc/apk/repositories.d/distfeeds.list
+
+uci del bandix.traffic.traffic_neighbor_flush_interval
+uci set bandix.traffic.enabled='1'
+uci set bandix.traffic.traffic_enable_storage='1'
+uci set bandix.connections.enabled='1'
+uci set bandix.dns.enabled='1'
+# uci set bandix.dns.dns_enable_storage='1'
+uci set bandix.dns.dns_enable_storage='0'
+uci set bandix.traffic.traffic_flush_interval='600'
+# uci set bandix.dns.dns_flush_interval='300'
+uci set bandix.traffic.traffic_realtime_window='1800'
+uci commit bandix
+/etc/init.d/bandix restart
+
+uci -q set zz_config.@status[0].first_boot=0
+uci commit zz_config
+
+
+fi
+
+uci set argon.@global[0].mode='dark'
+uci set argon.@global[0].online_wallpaper='none'
+uci set argon.@global[0].transparency_dark='0.3'
+uci commit argon
+
+exit 0

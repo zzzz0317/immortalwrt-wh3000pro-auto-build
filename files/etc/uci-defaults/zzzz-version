@@ -1,0 +1,4 @@
+#!/bin/sh
+sed -i "1i ZZ_DISTRIB_NAME='ImmortalWrt for Huasifei WH3000 Pro'" /etc/openwrt_release
+sed -i "2i ZZ_DISTRIB_VERSION='DEV'" /etc/openwrt_release
+/bin/sync
