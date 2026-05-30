@@ -4,6 +4,12 @@
 [submodule "zz-packages/bandix/openwrt-bandix"]
 	path = zz-packages/bandix/openwrt-bandix
 	url = https://github.com/timsaya/openwrt-bandix.git
+[submodule "zz-packages/bandix/luci-app-bandix-plus"]
+	path = zz-packages/bandix/luci-app-bandix-plus
+	url = https://github.com/timsaya/luci-app-bandix-plus.git
+[submodule "zz-packages/bandix/openwrt-bandix-plus"]
+	path = zz-packages/bandix/openwrt-bandix-plus
+	url = https://github.com/timsaya/openwrt-bandix-plus.git
 [submodule "zz-packages/theme/luci-theme-aurora"]
 	path = zz-packages/theme/luci-theme-aurora
 	url = https://github.com/eamonxg/luci-theme-aurora.git
